@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanitizer Near Me</title>
+    <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.3.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.3.1/mapbox-gl.js"></script>
+    <script src='https://unpkg.com/@turf/turf@6.3.0/turf.min.js'></script>
+    <style>
+        body { margin: 0; padding: 0;}
+        *{
+            box-sizing: border-box;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-container > div {
+            flex: 1;
+        }
+
+        .list-section {
+            overflow:hidden;
+            margin-top: 100px;
+        }
+
+        #item-result {
+            height: 70vh;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-gap: 0.25em;
+            padding:5px
+        }
+
+        .map-active .list-section #item-result {
+            /* display: block !important; */
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .map-active .list-section .filter-body {
+            display: block;
+        }
+
+        .map-active .list-section .filter-body select {
+            margin:0em;
+        }
+
+        .list-section .filter-body {
+            display: flex;
+        }
+
+        .list-section .filter-body select {
+            margin:0 1em;
+        }
+
+        #map {height: 100vh; width: 100%; }
+        .div-marker {
+            border:2px solid #b11226;
+            background-color: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .div-marker.closest-location {
+            border:2px solid green;
+        }
+
+        .div-marker.closest-location::before {
+            border-color: green transparent transparent;   
+        }
+
+        .div-marker::before {
+            width: 0;
+            content: "";
+            height: 0;
+            border-style: solid;
+            border-width: 8px 5px 0;
+            border-color: #b11226 transparent transparent;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            position: absolute;
+            border-radius: 0;
+            z-index: 1;
+        }
+
+        .div-marker div{
+            padding:4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .div-marker div img {
+            width: 22px;
+            height: 22px;
+        }
+
+        .mapboxgl-popup-content {
+            padding:0
+        }
+
+        .popup-content {
+            width:200px;
+        }
+
+        .popup-content .popup-header {
+            background-color: #b11226;
+            color:white;
+            padding:4px 6px;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .popup-content .popup-body {
+            padding:10px 10px 15px;
+        }
+
+        .header-section {
+            position: absolute;
+            top: 0%;
+            left: 0%;
+            background-color: transparent;
+            border-radius: 2px;
+            z-index: 3;
+            padding:5px 6px;
+            width: 50%;
+        }
+        
+        .form-control {
+            line-height: 1.3;
+            background-color: white;
+            border-radius: 0.25rem;
+            padding: 0.25em;
+            font-size: 16px;
+            width: 100%;
+        }
+
+        .input-container {
+            line-height: 1.3;
+            border:1px solid #ddd;
+            display: flex;
+            align-items: center;
+            background-color: white;
+            border-radius: 0.5rem;
+            padding: 4px ;
+            margin:1em 0;
+        }
+
+        .input-container .form-control {
+            border: none;
+            background-color: white
+        }
+
+        .input-container .form-control:focus {
+            outline: none !important;
+            box-shadow: none;
+        }
+
+        .list-section {
+            background-color: white;
+            width: 100%;
+            align-items: center;
+            padding: 0.5em;
+        }
+
+        .item-result {
+            padding:0.5em 0.5em;
+        }
+
+        h5 {
+            margin: 0;
+            font-size: 20px;
+            color: #055253;
+            font-weight: 700;
+        }
+
+        .mx-2 {
+            padding-left:0.75em !important;
+            padding-right: 0.75em !important;
+        }
+
+        .my-1 {
+            margin-top: 0.25em !important;
+            margin-bottom: 0.25em !important;
+        }
+
+        .d-flex {
+            display: flex;
+        }
+        .d-none {
+            display: none !important;
+        }
+
+        .tab-section {
+            display: flex;
+            background-color: #2BA9CD;
+            border-radius:0.5em;
+            overflow: hidden;
+            color: white;
+        }
+
+        .tab-section .tab {
+            flex:1;
+            text-align: center;
+            padding:0.375rem 0.5rem;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .tab-section .tab.active {
+            background-color: #055253;
+        }
+
+        .filter-header {
+            padding: 0.5em;
+            font-size: 16px;
+            justify-content: space-between;
+        }
+
+        .filter-header button {
+            padding: 0.25rem 0.5rem;
+            background: #2BA9CD;
+            color: white;
+            border: none;
+        }
+        
+        .item {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            box-shadow: 0px 0px 0.5em #ddd;
+            padding: 1em 0.375em;
+            border-bottom: 1px solid #ddd;
+            margin:0.25em 0;
+            cursor: pointer;
+            height: 100px;
+        }
+
+        .item:hover {
+            background-color: #ddd;
+        }
+
+        .item-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color:#2BA9CD;
+        }
+
+        .item-title:hover {
+            text-decoration: none;
+            color:#2BA9CD;
+        }
+
+        .item-body {
+            display: flex;
+        }
+
+        .status-badge .badge {
+            border:2px solid #2BA9CD;
+            font-size: 10px;
+        }
+
+        .item-result {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-result .form-select {
+            border:0px;
+            font-weight: 500;
+        }
+
+        @media (max-width:480px) {
+            .main-container {
+                display: block !important;
+            }
+
+            .list-section {
+                margin-top: 10px;
+            }
+
+            .header-section {
+                display: block;
+                width: 100%;
+                color:white;
+                position: relative
+            }
+
+            .map-active .header-section {
+                position: absolute;
+                z-index: 1;
+                width: 100%;
+                top:0;
+            }
+
+            .map-active #list-section {
+                position: absolute;
+                z-index: 3;
+                background: white;
+                border-radius: 20px 20px 0px 0px;
+                bottom: 0px;
+                height: 30vh;
+                width: 100%;
+                overflow-y: hidden;
+                margin: 0%;
+                display: block;
+            }
+
+            #item-result {
+                grid-template-columns: 1fr !important;
+            }
+
+            .mapboxgl-ctrl-bottom-left {
+                bottom: 30vh;
+                left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container map-active" id="main-section">
+        <div class="header-section" id="header-section">
+            <div class="search-section" id="search-section">
+                <div class="nav-section my-1">    
+                    <div class="input-container mx-2">
+                        <div class="px-2">
+                            <i class="fa fa-search"></i>
+                        </div>
+                
+                        <input type="text" id="search-control" class="form-control mx-2" placeholder="Search ...">
+                    </div>
+    
+                </div>
+    
+                <div class="tab-section my-1">
+                    <div class="active tab" id="tab-map">Map</div>
+                    <div class="tab" id="tab-list">List</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="list-section" id="list-section">
+            <div class="filter-result">
+                <div class="filter-header d-flex">
+                    <h5 class="my-1" id="result-count"></h5>
+                    <button id="reset-btn">Reset</button>
+                </div>
+                
+                
+                <div class="filter-body">
+                    <select class="form-control my-1" id="industry-control" aria-label="Default select example">
+                        <option selected value="all">All Industries</option>
+                    </select>
+    
+                    <select class="form-control my-1" id="city-control" aria-label="Default select example">
+                        <option selected value="all">All Cities</option>
+                    </select>
+    
+                    <select class="form-control my-1" id="brand-control" aria-label="Default select example">
+                        <option selected value="all">All Brands</option>
+                    </select>
+                </div>
+               
+            </div>
+
+            <div id="item-result">
+            </div>
+        </div>
+
+        <div id="map-section">
+            <div class="map" id="map"></div>
+        </div>
+    </div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF1ZGk5NyIsImEiOiJjanJtY3B1bjYwZ3F2NGFvOXZ1a29iMmp6In0.9ZdvuGInodgDk7cv-KlujA';
+        var sanitizerLocations = {"type":"FeatureCollection", "features":[]};
+        var closestSanitizers = [];
+
+        let filterResults = [];
+        let currentPageIndex = 0;
+        let itemResultSection = document.getElementById('item-result');
+        let countSection = document.getElementById('result-count');
+
+        var map = new mapboxgl.Map({
+            container: 'map', // container ID
+            style: 'mapbox://styles/mapbox/light-v9', // style URL
+            center: [-121.50533311448228, 37.47151057788136], // starting position [lng, lat]
+            zoom: 5 // starting zoom
+        });
+
+        // geolocation
+        var geolocationControl = new mapboxgl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: true
+            },
+            trackUserLocation: false
+        });
+
+        map.addControl(geolocationControl, 'bottom-left');
+
+        geolocationControl.on('geolocate', function(e) {
+            console.log(e);
+            let { latitude, longitude} = e.coords;
+            // get the closest sanitizers
+            let userLocation = turf.point([longitude, latitude]);
+            let sanitizers = JSON.parse(JSON.stringify(sanitizerLocations));
+
+            console.log(userLocation);
+
+            // 
+            let locations = getClosestLocations(sanitizers, userLocation);
+            let locationGeojson = turf.featureCollection(locations);
+
+            let locationBbox = turf.bbox(locationGeojson);
+
+            map.fitBounds(locationBbox, {
+                padding:10
+            });
+
+            // create the markers
+            // addNearestLocationsToMap(locations);
+            // map.setLayoutProperty('clusters', 'visibility', 'none');
+            updateListing(locations);
+
+            console.log(locations);
+        });
+
+        function addNearestLocationsToMap(locations) {
+            closestSanitizers.forEach(marker => marker.remove());
+
+            locations.forEach(location => {
+                let divMarker = createMarker(location);
+                divMarker.classList.add('closest-location');
+
+                let popup = new mapboxgl.Popup().setHTML(getPopupContent(location));
+
+                let marker = new mapboxgl.Marker({ element:divMarker})
+                    .setLngLat(location.geometry.coordinates)
+                    .setPopup(popup)
+                    .addTo(map);
+
+                    closestSanitizers.push(marker);
+            }); 
+        }
+
+        function getClosestLocations(sanitizers, userLocation) {
+            let locations = [];
+            let points = turf.featureCollection(sanitizers.features);
+
+            // console.log(points);
+            for (let i = 0; i < 10; i++) {
+                console.log(points);
+                let nearest = turf.nearestPoint(userLocation, points);
+                console.log(nearest);
+
+                locations.push(nearest);
+                points.features = points.features.filter(point => point.properties.ID != nearest.properties.ID);
+            }
+
+            return locations;
+
+        }
+
+        // create a custom markers
+        map.on('load', function(e) {
+            map.addSource('sanitizers-location', {
+                type: 'geojson',
+                data: sanitizerLocations,
+                cluster: true,
+                clusterMaxZoom: 12, // Max zoom to cluster points on
+                clusterRadius: 50 // Radius of each cluster when clustering points (defaults to 50)
+            });
+
+            map.addLayer({
+                id: 'clusters',
+                type: 'circle',
+                source: 'sanitizers-location',
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': [
+                        'step',
+                        ['get', 'point_count'],
+                        '#51bbd6',
+                        100,
+                        '#51bbd6',
+                        750,
+                        '#51bbd6'
+                    ],
+                    'circle-radius': [
+                        'step',
+                        ['get', 'point_count'],
+                        20,
+                        100,
+                        30,
+                        750,
+                        40
+                    ]
+                }
+            });
+                
+            map.addLayer({
+                id: 'cluster-count',
+                type: 'symbol',
+                source: 'sanitizers-location',
+                filter: ['has', 'point_count'],
+                layout: {
+                    'text-field': '{point_count_abbreviated}',
+                    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                    'text-size': 12
+                }
+            });
+
+            map.on('render', function(e) {
+                if (!map.isSourceLoaded('sanitizers-location')) return;
+                updateMarkers();
+            });
+
+            map.on('mouseover', 'clusters', function(e) {
+                map.getCanvas().style.cursor = "pointer"
+            });
+
+            map.on('mouseout', 'clusters', function(e) {
+                map.getCanvas().style.cursor = ""
+            });
+
+            map.on('click', 'clusters', function(e) {
+                var features = map.queryRenderedFeatures(e.point, {
+                    layers: ['clusters']
+                });
+
+                var clusterId = features[0].properties.cluster_id;
+
+                map.getSource('sanitizers-location').getClusterExpansionZoom(
+                    clusterId,
+                    function (err, zoom) {
+                        if (err) return;
+                        
+                        map.easeTo({
+                            center: features[0].geometry.coordinates,
+                            zoom: zoom
+                        });
+                    }
+                );
+            });
+
+            d3.csv('https://docs.google.com/spreadsheets/d/e/2PACX-1vRmUqxfO-X6CAOifTIXPnlizJQooXGOquYAr-CD9lQQbbJtBh2RtomThM4xeyMSmFMkxiz3a3QJs7dy/pub?gid=1747064329&single=true&output=csv')
+            .then(data => {
+                console.log(data);
+
+                // create geojson
+                let features = data.map((entry,index) => {
+                    let props = {ID:index, ...entry};
+                    return turf.point([entry.Longitude, entry.Latitude], props);
+                });
+
+                sanitizerLocations = turf.featureCollection(features);
+
+                // update
+                updateListing(features);
+
+                let industries = sanitizerLocations.features.map(ft => ft.properties.INDUSTRY);
+                industries = [...new Set(industries)];
+
+                industryFilters.innerHTML += industries.map(industry => {
+                    return `<option value="${industry}"> Show by ${industry}</option>`;
+                }).join('');
+
+                // cities
+                let cities = sanitizerLocations.features.map(ft => ft.properties['ADDRESS 2']);
+                cities = [...new Set(cities)];
+
+                cityFilter.innerHTML += cities.map(city => {
+                    return `<option value="${city}"> Show by ${city}</option>`;
+                }).join('');
+
+                // brands
+                let brands = sanitizerLocations.features.map(ft => ft.properties['BRAND NAME']);
+                brands = [...new Set(brands)];
+
+                brandFilter.innerHTML += brands.map(brand => {
+                    return `<option value="${brand}"> Show by ${brand}</option>`;
+                }).join('');
+            })
+            .catch(error => console.error);
+
+
+        });
+
+        var markers = {};
+        var markersOnScreen = {};
+
+        function updateMarkers() {
+            var newMarkers = {};
+            var features = map.querySourceFeatures('sanitizers-location');
+
+            features.forEach(feature => {
+                let props = feature.properties;
+                var id = props.ID;
+                var coords = feature.geometry.coordinates;
+
+                if(props.cluster) {
+                    return feature;
+                } else {
+                    var marker = markers[id];
+
+                    if (!marker) {
+                        var el = createMarker(feature);
+                        var popupContent = getPopupContent(feature);
+
+                        var popup = new mapboxgl.Popup().setHTML(popupContent);
+
+                        marker = markers[id] = new mapboxgl.Marker({
+                            element: el
+                        })
+                        .setLngLat(coords)
+                        .setPopup(popup);
+
+                    }
+
+                    newMarkers[id] = marker;
+                    
+                    if (!markersOnScreen[id]) marker.addTo(map);
+                }
+
+                return feature;
+            });
+
+            for (id in markersOnScreen) {
+                if (!newMarkers[id]) markersOnScreen[id].remove();
+            }
+
+            markersOnScreen = newMarkers;
+        }
+
+        function createMarker(feature) {
+            let divMarker = document.createElement('div');
+            divMarker.classList.add('div-marker');
+
+            divMarker.innerHTML = "<div><img src='sanitizer.png' /></div>";
+            return divMarker;
+        }
+
+        function getPopupContent(feature) {
+            let props = feature.properties;
+
+            return `<div class='popup-content'>
+                <div class='popup-header'>${props.NAME}</div>
+                <div class='popup-body'><b>Industry </b> </br> ${props.INDUSTRY}</div>
+            </div>`;
+        }
+
+        // filter by 
+    let mainSection = document.getElementById('main-section');
+    let listSection = document.getElementById('list-section');
+    let mapSection = document.getElementById('map-section');
+
+    let tabs = document.querySelectorAll('.tab-section .tab');
+    tabs.forEach(tab => {
+        tab.onclick = function(e) {
+            toggleTabs(e);
+        }
+    });
+
+    function toggleTabs(e) {
+        let id = e.target.id;
+        e.target.classList.add('active');
+
+        let element = id == 'tab-map' ? document.getElementById('tab-list') : document.getElementById('tab-map');
+        element.classList.remove('active');
+
+        //
+        if(id == 'tab-map') {
+        // update the header class
+        mainSection.classList.add('map-active');
+        // listSection.classList.add('d-none');
+        mapSection.classList.remove('d-none');
+        } else {
+        mapSection.classList.add('d-none');
+        // listSection.classList.remove('d-none');
+        mainSection.classList.remove('map-active');
+        }
+    }
+
+    window.onresize = function(e) {
+        // collapse the
+        let { innerWidth } = e.target;
+        console.log(innerWidth);
+
+        //
+        if(outerWidth > 768) {
+        listSection.classList.remove('d-none');
+        }
+    }
+
+    itemResultSection.onscroll = scrolled;
+
+    function scrolled(e) {
+        if (itemResultSection.offsetHeight + 10 + itemResultSection.scrollTop >= itemResultSection.scrollHeight) {
+            // scrolledToBottom(e);
+            console.log(e);
+            currentPageIndex += 1;
+            updateListing(filterResults)
+        }
+    }
+
+    function createListItems(sanitizers) {
+        let items = [];
+        sanitizers.forEach(sanitizer => {
+            let item = createListItem(sanitizer.properties);
+            items.push(item);
+        });
+
+        return items;
+    }
+
+    function createListItem(sanitizer) {
+        let listItem = `
+        <div class="item d-flex" data-href="${sanitizer.ID}">
+                <div class="item-body" data-href="${sanitizer.ID}">
+                    <div class="item-avatar mx-2">
+                        <img src="sanitizer.png" class="rounded-circle" width="30" height="30" alt="">
+                    </div>
+        
+                    <div>
+                        <div data-href="${sanitizer.ID}" class="item-title bold">
+                            ${sanitizer.NAME}
+                        </div>
+            
+                        <div class="">${sanitizer.INDUSTRY}</div>
+                    </div>
+                </div>
+        </div>`;
+
+        return listItem;
+    }
+
+    // filter by industry
+    let industryFilters = document.getElementById('industry-control');
+    industryFilters.onchange = function(e) {
+        let { value } = e.target;
+        let locations = filterSanitizersBy('INDUSTRY', value);
+
+        updateListing(locations);
+    }
+
+    function filterSanitizersBy(property, value) {
+        if(value == 'all') {
+            return sanitizerLocations.features.filter(sanitizer => sanitizer);
+        }
+
+        let locations = sanitizerLocations.features.filter(sanitizer => sanitizer.properties[property] == value);
+
+        console.log(locations);
+        return locations;
+    }
+
+    // filter by brand name
+    let brandFilter = document.getElementById('brand-control');
+    brandFilter.onchange = function(e) {
+        let { value } = e.target;
+
+        let locations = filterSanitizersBy('BRAND NAME', value);
+         updateListing(locations);
+    }
+
+    let cityFilter = document.getElementById('city-control');
+    cityFilter.onchange = function(e) {
+        let { value } = e.target;
+
+        let locations = filterSanitizersBy('ADDRESS 2', value);
+         updateListing(locations);
+    }
+    
+    // search the locations
+    let searchFilter = document.getElementById('search-control');
+    searchFilter.oninput = function(e) {
+        let { value } = e.target;
+        let results = filterByLocationName(value);
+
+        itemResultSection.innerHTML = "";
+        updateListing(results);
+    }
+
+    function filterByLocationName(name) {
+        let results = sanitizerLocations.features.filter(location => {
+            if(location.properties.NAME){
+                if(location.properties.NAME.toLowerCase().includes(name.toLowerCase())) {
+                    return location;
+                } 
+
+                return false;
+            }
+
+            return false;
+        });
+
+        return results;
+    }
+
+    let resetButton = document.getElementById('reset-btn');
+    resetButton.onclick = function(e) {
+        resetFilters();
+    }
+
+    function resetFilters() {
+        currentPageIndex = 0;
+        updateListing(sanitizerLocations.features);
+        map.setCenter([-121.50533311448228, 37.47151057788136]);
+        map.setZoom(5);
+    }
+
+    function updateListing(locations) {
+        filterResults = JSON.parse(JSON.stringify(locations));
+
+        locations = locations.length > 50 ? locations.slice(0, currentPageIndex * 50 + 50) : locations;
+        if(locations.length == 0) {
+            itemResultSection.innerHTML = "No matching result found";
+        } else {
+            let items = createListItems(locations);
+            itemResultSection.innerHTML = items.join('');
+
+            registerEventListener();
+        }
+
+        countSection.innerHTML = locations.length + " of " + filterResults.length + " Sanitizers";
+
+        // update the map
+        let sanitizers = turf.featureCollection(filterResults);
+        map.getSource('sanitizers-location').setData(sanitizers);
+    }
+
+    function registerEventListener() {
+        let items = document.querySelectorAll('.item');
+        items.forEach(item => {
+            item.onclick = function(e) {
+                let { dataset:{ href }} = e.target;
+
+                zoomTo(href);
+            }
+        })
+    }
+
+    function zoomTo(id) {
+        console.log(id);
+        let location = sanitizerLocations.features.find(location => location.properties.ID == id);
+
+        console.log(location);
+        if(location) {
+            map.flyTo({
+                center:location.geometry.coordinates,
+                zoom:16
+            });
+
+            map.once('zoomend', function(e) {
+                console.log('Zoomend');
+
+                //  display a popup
+                new mapboxgl.Popup()
+                    .setHTML(getPopupContent(location))
+                    .setLngLat(location.geometry.coordinates)
+                    .addTo(map);
+            });
+        }
+       
+    }
+    </script>
+</body>
+</html>
